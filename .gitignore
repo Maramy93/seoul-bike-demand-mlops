@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local datasets
+data/raw/*
+!data/raw/.gitkeep
+
+# Trained models and experiment files
+models/*
+mlruns/
+mlartifacts/
+
+# macOS files
+.DS_Store
+
+# VS Code local settings
+.vscode/
