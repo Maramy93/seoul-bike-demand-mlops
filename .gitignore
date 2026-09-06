@@ -231,3 +231,8 @@ mlartifacts/
 
 # VS Code local settings
 .vscode/
+
+# Local MLflow database
+mlflow.db
+mlflow.db-shm
+mlflow.db-wal
