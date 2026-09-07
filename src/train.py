@@ -1,4 +1,5 @@
 from pathlib import Path
+import joblib
 
 import mlflow
 import mlflow.sklearn
@@ -14,6 +15,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_ROOT / "data" / "raw" / "SeoulBikeData.csv"
+MODEL_PATH = PROJECT_ROOT / "models" / "bike_demand_pipeline.joblib"
 
 
 COLUMN_NAMES = {
@@ -199,6 +201,11 @@ def main() -> None:
 
     final_model = build_model()
     final_model.fit(X_final_train, y_final_train)
+
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(final_model, MODEL_PATH)
+
+    print(f"Model saved to: {MODEL_PATH}")
 
     test_mae, test_predictions = evaluate_model(
         final_model,
