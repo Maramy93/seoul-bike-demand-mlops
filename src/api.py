@@ -1,6 +1,6 @@
 from datetime import date
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import joblib
 import numpy as np
@@ -17,7 +17,16 @@ MODEL_PATH = (
     / "bike_demand_pipeline.joblib"
 )
 
-model = joblib.load(MODEL_PATH)
+model: Any | None = None
+
+
+def get_model() -> Any:
+    global model
+
+    if model is None:
+        model = joblib.load(MODEL_PATH)
+
+    return model
 
 app = FastAPI(
     title="Seoul Bike Demand API",
@@ -61,7 +70,7 @@ def predict(request: BikeDemandRequest) -> BikeDemandResponse:
 
     features = pd.DataFrame([values], columns=ALL_FEATURES)
 
-    prediction = model.predict(features)
+    prediction = get_model().predict(features)
     predicted_count = int(round(np.maximum(prediction[0], 0)))
 
     return BikeDemandResponse(

@@ -1,6 +1,10 @@
+import numpy as np
+import src.api as api_module
+
 from fastapi.testclient import TestClient
 
 from src.api import app
+
 
 
 client = TestClient(app)
@@ -30,7 +34,13 @@ def test_health_endpoint() -> None:
     assert response.json() == {"status": "healthy"}
 
 
-def test_predict_endpoint() -> None:
+def test_predict_endpoint(monkeypatch) -> None:
+    class FakeModel:
+        def predict(self, features):
+            return np.array([1704.0])
+
+    monkeypatch.setattr(api_module, "model", FakeModel())
+
     response = client.post("/predict", json=VALID_REQUEST)
 
     assert response.status_code == 200
@@ -38,7 +48,7 @@ def test_predict_endpoint() -> None:
     predicted_count = response.json()["predicted_bike_count"]
 
     assert isinstance(predicted_count, int)
-    assert predicted_count >= 0
+    assert predicted_count == 1704
 
 
 def test_invalid_hour_is_rejected() -> None:
