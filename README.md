@@ -4,6 +4,28 @@
 
 An end-to-end MLOps project that predicts hourly bicycle rental demand in Seoul using weather, calendar, and operational information.
 
+## Live deployment
+
+The prediction API is publicly deployed on a Linux VPS.
+
+- API documentation: https://maram-bike.duckdns.org/docs
+- Health check: https://maram-bike.duckdns.org/health
+- Source code: https://github.com/Maramy93/seoul-bike-demand-mlops
+
+### Deployment architecture
+
+```text
+User
+  → HTTPS
+  → DuckDNS domain
+  → Nginx reverse proxy
+  → Docker container
+  → FastAPI
+  → trained scikit-learn model
+```
+
+The Docker container listens internally at `127.0.0.1:1084`. Nginx forwards public requests to the container, and Certbot provides HTTPS and automatic certificate renewal.
+
 ## Dataset
 
 The project uses the [UCI Seoul Bike Sharing Demand dataset](https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand).
@@ -21,6 +43,7 @@ The dataset contains 8,760 hourly observations from December 2017 through Novemb
 7. Serve predictions through FastAPI.
 8. Package the service with Docker.
 9. Test changes automatically with pytest and GitHub Actions.
+10. Deploy the API to a Linux VPS with Nginx and HTTPS.
 
 ## Model results
 
@@ -41,8 +64,11 @@ The test set was preserved until final model selection.
 
 ```text
 .
-├── .github/workflows/ci.yml.yml
-├── data/raw/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── data/
+│   └── raw/
 ├── models/
 ├── notebooks/
 │   ├── 01_eda.ipynb
@@ -53,6 +79,8 @@ The test set was preserved until final model selection.
 │   └── training_flow.py
 ├── tests/
 │   └── test_api.py
+├── .dockerignore
+├── .gitignore
 ├── Dockerfile
 ├── pyproject.toml
 └── uv.lock
@@ -71,7 +99,7 @@ uv sync
 Download `SeoulBikeData.csv` from UCI and place it inside:
 
 ```text
-data/raw/SeoulBikeData.csv
+data/raw/SeoulBikeDataData.csv
 ```
 
 Raw data and trained model artifacts are intentionally excluded from Git.
@@ -93,6 +121,7 @@ It also records parameters, metrics, tags, and the model artifact with MLflow.
 ## View MLflow experiments
 
 ```bash
+uv runuvuv uv uv321
 uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 ```
 
@@ -122,7 +151,7 @@ Open the Prefect dashboard:
 http://127.0.0.1:4200
 ```
 
-## Run the prediction API
+## Run the prediction API locally
 
 The trained model must exist before starting the API.
 
@@ -136,9 +165,22 @@ Open the interactive API documentation:
 http://127.0.0.1:8000/docs
 ```
 
-### Example prediction request
+## Try the deployed model online
 
-Send a `POST` request to `/predict`:
+Open:
+
+```text
+https://maram-bike.duckdns.org/docs
+```
+
+Then:
+
+1. Expand `POST /predict`.
+2. Click **Try it out**.
+3. Enter the request data.
+4. Click **Execute**.
+
+### Example prediction request
 
 ```json
 {
@@ -168,6 +210,8 @@ Example response:
 
 The exact prediction depends on the saved model.
 
+A successful request returns HTTP status `200`.
+
 ## Run automated tests
 
 ```bash
@@ -176,13 +220,13 @@ uv run pytest -v
 
 The tests cover:
 
-- the health endpoint;
-- a valid prediction request;
-- rejection of invalid input.
+- The health endpoint.
+- A valid prediction request.
+- Rejection of invalid input.
 
 GitHub Actions runs these tests automatically on pushes and pull requests to `main`.
 
-## Run with Docker
+## Run with Docker locally
 
 Train the model first so that the local model artifact exists:
 
@@ -208,6 +252,30 @@ Open:
 http://127.0.0.1:8000/docs
 ```
 
+## VPS deployment
+
+The project is deployed using the following components:
+
+- A Linux VPS hosts the application.
+- Docker packages and runs the FastAPI service.
+- The container is available internally through port `1084`.
+- Nginx acts as a reverse proxy.
+- DuckDNS provides the public domain.
+- Certbot and Let’s Encrypt provide HTTPS.
+- The Docker restart policy restarts the container after a server reboot.
+
+The internal production port mapping is:
+
+```text
+127.0.0.1:1084 → container port 8000
+```
+
+The public Nginx endpoint is:
+
+```text
+https://maram-bike.duckdns.org
+```
+
 ## Technology stack
 
 - Python 3.11
@@ -218,5 +286,8 @@ http://127.0.0.1:8000/docs
 - FastAPI and Uvicorn
 - pytest
 - Docker
+- Nginx
+- DuckDNS
+- Certbot and Let’s Encrypt
 - GitHub Actions
 - uv
