@@ -15,4 +15,4 @@ COPY models/bike_demand_pipeline.joblib ./models/bike_demand_pipeline.joblib
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--no-sync", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
