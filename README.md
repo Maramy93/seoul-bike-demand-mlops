@@ -70,21 +70,36 @@ The test set was preserved until final model selection.
 ├── data/
 │   └── raw/
 ├── models/
+├── monitoring/
+│   ├── prometheus/
+│   │   └── prometheus.yml
+│   └── grafana/
+│       ├── dashboards/
+│       │   ├── dashboards.yml
+│       │   └── seoul-bike-operational.json
+│       └── datasources/
+│           └── prometheus.yml
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   └── 02_baseline_model.ipynb
+├── reports/
 ├── src/
+│   ├── __init__.py
 │   ├── api.py
+│   ├── metrics.py
 │   ├── train.py
 │   └── training_flow.py
 ├── tests/
 │   └── test_api.py
 ├── .dockerignore
+├── .env.example
 ├── .gitignore
+├── .python-version
+├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml
+├── README.md
 └── uv.lock
-```
 
 ## Installation
 
@@ -314,6 +329,33 @@ Open:
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+## Monitoring with Prometheus and Grafana
+
+The deployed API includes operational monitoring using Prometheus and Grafana.
+
+Prometheus collects metrics from the FastAPI `/metrics` endpoint every 10 seconds. Grafana displays the collected metrics in a provisioned dashboard.
+
+The dashboard monitors:
+
+- API availability
+- Total number of predictions
+- Latest predicted bicycle count
+- HTTP request rate by endpoint
+- Server error rate
+- API response time (p95)
+- Model prediction time (p95)
+- Active HTTP requests
+
+### Monitoring architecture
+
+```text
+FastAPI /metrics
+       ↓
+Prometheus
+       ↓
+Grafana dashboard
+
 
 ## VPS deployment
 
