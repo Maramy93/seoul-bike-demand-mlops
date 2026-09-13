@@ -99,12 +99,14 @@ uv sync
 Download `SeoulBikeData.csv` from UCI and place it inside:
 
 ```text
-data/raw/SeoulBikeDataData.csv
+data/raw/SeoulBikeData.csv
 ```
 
 Raw data and trained model artifacts are intentionally excluded from Git.
 
 ## Train the model
+
+Run:
 
 ```bash
 uv run python src/train.py
@@ -116,12 +118,13 @@ Training creates:
 models/bike_demand_pipeline.joblib
 ```
 
-It also records parameters, metrics, tags, and the model artifact with MLflow.
+Training also records parameters, metrics, tags, and the model artifact with MLflow.
 
 ## View MLflow experiments
 
+Start the MLflow user interface:
+
 ```bash
-uv runuvuv uv uv321
 uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 ```
 
@@ -167,7 +170,7 @@ http://127.0.0.1:8000/docs
 
 ## Try the deployed model online
 
-Open:
+The easiest way to use the trained model is through the public Swagger interface:
 
 ```text
 https://maram-bike.duckdns.org/docs
@@ -208,11 +211,71 @@ Example response:
 }
 ```
 
-The exact prediction depends on the saved model.
+The exact prediction depends on the saved model. A successful request returns HTTP status `200`.
 
-A successful request returns HTTP status `200`.
+### Test with curl
+
+A prediction can also be requested from a terminal:
+
+```bash
+curl -X POST "https://maram-bike.duckdns.org/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2018-10-08",
+    "hour": 8,
+    "temperature": 15.2,
+    "humidity": 55,
+    "wind_speed": 1.8,
+    "visibility": 1800,
+    "dew_point_temperature": 6.2,
+    "solar_radiation": 0.8,
+    "rainfall": 0,
+    "snowfall": 0,
+    "season": "Autumn",
+    "holiday": "No Holiday",
+    "functioning_day": "Yes"
+  }'
+```
+
+## Reproduce the project from GitHub
+
+A new user can reproduce the project with these steps:
+
+```bash
+git clone https://github.com/Maramy93/seoul-bike-demand-mlops.git
+cd seoul-bike-demand-mlops
+uv sync
+```
+
+Download the dataset and place it at:
+
+```text
+data/raw/SeoulBikeData.csv
+```
+
+Train and save the model:
+
+```bash
+uv run python src/train.py
+```
+
+Start the API:
+
+```bash
+uv run uvicorn src.api:app --reload
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+The dataset and trained model are excluded from Git because they are external or generated artifacts. The training code allows the model to be regenerated.
 
 ## Run automated tests
+
+Run:
 
 ```bash
 uv run pytest -v
@@ -228,13 +291,13 @@ GitHub Actions runs these tests automatically on pushes and pull requests to `ma
 
 ## Run with Docker locally
 
-Train the model first so that the local model artifact exists:
+Train the model first so the local model artifact exists:
 
 ```bash
 uv run python src/train.py
 ```
 
-Build the image:
+Build the Docker image:
 
 ```bash
 docker build -t seoul-bike-api .
@@ -254,7 +317,7 @@ http://127.0.0.1:8000/docs
 
 ## VPS deployment
 
-The project is deployed using the following components:
+The production deployment uses the following components:
 
 - A Linux VPS hosts the application.
 - Docker packages and runs the FastAPI service.
