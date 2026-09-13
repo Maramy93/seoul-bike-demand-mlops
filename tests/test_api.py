@@ -58,3 +58,12 @@ def test_invalid_hour_is_rejected() -> None:
     response = client.post("/predict", json=invalid_request)
 
     assert response.status_code == 422
+
+
+def test_metrics_endpoint() -> None:
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
+    assert "predictions_total" in response.text
+    assert "prediction_value_bicycles" in response.text

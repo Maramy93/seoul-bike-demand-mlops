@@ -1,13 +1,23 @@
 from datetime import date
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Literal
 
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
+from src.metrics import (
+    ACTIVE_REQUESTS,
+    PREDICTION_COUNT,
+    PREDICTION_LATENCY,
+    PREDICTION_VALUE,
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+)
 from src.train import ALL_FEATURES
 
 
@@ -27,6 +37,7 @@ def get_model() -> Any:
         model = joblib.load(MODEL_PATH)
 
     return model
+
 
 app = FastAPI(
     title="Seoul Bike Demand API",
@@ -55,9 +66,47 @@ class BikeDemandResponse(BaseModel):
     predicted_bike_count: int
 
 
+@app.middleware("http")
+async def prometheus_middleware(
+    request: Request,
+    call_next,
+) -> Response:
+    start_time = perf_counter()
+    status_code = 500
+    ACTIVE_REQUESTS.inc()
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        duration = perf_counter() - start_time
+
+        REQUEST_COUNT.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            status=str(status_code),
+        ).inc()
+
+        REQUEST_LATENCY.labels(
+            method=request.method,
+            endpoint=request.url.path,
+        ).observe(duration)
+
+        ACTIVE_REQUESTS.dec()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "healthy"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.post("/predict", response_model=BikeDemandResponse)
@@ -70,8 +119,16 @@ def predict(request: BikeDemandRequest) -> BikeDemandResponse:
 
     features = pd.DataFrame([values], columns=ALL_FEATURES)
 
+    PREDICTION_COUNT.inc()
+
+    start_time = perf_counter()
     prediction = get_model().predict(features)
+    prediction_duration = perf_counter() - start_time
+
     predicted_count = int(round(np.maximum(prediction[0], 0)))
+
+    PREDICTION_LATENCY.observe(prediction_duration)
+    PREDICTION_VALUE.set(predicted_count)
 
     return BikeDemandResponse(
         predicted_bike_count=predicted_count,
