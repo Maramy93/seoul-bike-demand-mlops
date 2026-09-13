@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Seoul Bike Monitoring
+    orgId: 1
+    folder: Seoul Bike Demand
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
