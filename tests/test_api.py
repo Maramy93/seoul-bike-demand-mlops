@@ -67,3 +67,10 @@ def test_metrics_endpoint() -> None:
     assert "http_requests_total" in response.text
     assert "predictions_total" in response.text
     assert "prediction_value_bicycles" in response.text
+
+def test_drift_report_endpoint() -> None:
+    response = client.get("/drift-report")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Dataset Drift" in response.text

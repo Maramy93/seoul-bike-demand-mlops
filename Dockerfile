@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
+COPY monitoring/evidently/reports/seoul_bike_drift_report.html ./monitoring/evidently/reports/seoul_bike_drift_report.html
 COPY models/bike_demand_pipeline.joblib ./models/bike_demand_pipeline.joblib
 
 EXPOSE 8000

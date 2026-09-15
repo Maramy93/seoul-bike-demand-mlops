@@ -3,6 +3,11 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 
+from pathlib import Path
+
+from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -20,6 +25,9 @@ from src.metrics import (
 )
 from src.train import ALL_FEATURES
 
+DRIFT_REPORT_PATH = Path(
+    "monitoring/evidently/reports/seoul_bike_drift_report.html"
+)
 
 MODEL_PATH = (
     Path(__file__).resolve().parents[1]
@@ -108,6 +116,21 @@ def metrics() -> Response:
         media_type=CONTENT_TYPE_LATEST,
     )
 
+@app.get("/drift-report", include_in_schema=False)
+def drift_report() -> FileResponse:
+    """Return the latest Evidently data-drift dashboard."""
+
+    if not DRIFT_REPORT_PATH.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="The drift report has not been generated.",
+        )
+
+    return FileResponse(
+        path=DRIFT_REPORT_PATH,
+        media_type="text/html",
+    )
+
 
 @app.post("/predict", response_model=BikeDemandResponse)
 def predict(request: BikeDemandRequest) -> BikeDemandResponse:
@@ -133,3 +156,4 @@ def predict(request: BikeDemandRequest) -> BikeDemandResponse:
     return BikeDemandResponse(
         predicted_bike_count=predicted_count,
     )
+
