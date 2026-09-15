@@ -6,10 +6,11 @@ An end-to-end MLOps project that predicts hourly bicycle rental demand in Seoul 
 
 ## Live deployment
 
-The prediction API is publicly deployed on a Linux VPS.
+The prediction API and Evidently drift dashboard are publicly deployed on a Linux VPS.
 
 - API documentation: https://maram-bike.duckdns.org/docs
 - Health check: https://maram-bike.duckdns.org/health
+- Evidently drift dashboard: https://maram-bike.duckdns.org/drift-report
 - Source code: https://github.com/Maramy93/seoul-bike-demand-mlops
 
 ### Deployment architecture
@@ -24,7 +25,7 @@ User
   → trained scikit-learn model
 ```
 
-The Docker container listens internally at `127.0.0.1:1084`. Nginx forwards public requests to the container, and Certbot provides HTTPS and automatic certificate renewal.
+The FastAPI container is bound internally to `127.0.0.1:1084`. Nginx forwards public HTTPS requests to the container, and Certbot provides HTTPS with automatic certificate renewal.
 
 ## Dataset
 
@@ -44,6 +45,8 @@ The dataset contains 8,760 hourly observations from December 2017 through Novemb
 8. Package the service with Docker.
 9. Test changes automatically with pytest and GitHub Actions.
 10. Deploy the API to a Linux VPS with Nginx and HTTPS.
+11. Monitor API operations with Prometheus and Grafana.
+12. Detect input-feature drift with Evidently.
 
 ## Model results
 
@@ -71,14 +74,19 @@ The test set was preserved until final model selection.
 │   └── raw/
 ├── models/
 ├── monitoring/
-│   ├── prometheus/
-│   │   └── prometheus.yml
-│   └── grafana/
-│       ├── dashboards/
-│       │   ├── dashboards.yml
-│       │   └── seoul-bike-operational.json
-│       └── datasources/
-│           └── prometheus.yml
+│   ├── evidently/
+│   │   ├── drift_report.py
+│   │   └── reports/
+│   │       ├── seoul_bike_drift_report.html
+│   │       └── seoul_bike_drift_report.json
+│   ├── grafana/
+│   │   ├── dashboards/
+│   │   │   ├── dashboards.yml
+│   │   │   └── seoul-bike-operational.json
+│   │   └── datasources/
+│   │       └── prometheus.yml
+│   └── prometheus/
+│       └── prometheus.yml
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   └── 02_baseline_model.ipynb
@@ -100,6 +108,7 @@ The test set was preserved until final model selection.
 ├── pyproject.toml
 ├── README.md
 └── uv.lock
+```
 
 ## Installation
 
@@ -111,7 +120,7 @@ cd seoul-bike-demand-mlops
 uv sync
 ```
 
-Download `SeoulBikeData.csv` from UCI and place it inside:
+Download `SeoulBikeData.csv` from UCI and place it at:
 
 ```text
 data/raw/SeoulBikeData.csv
@@ -187,9 +196,7 @@ http://127.0.0.1:8000/docs
 
 The easiest way to use the trained model is through the public Swagger interface:
 
-```text
 https://maram-bike.duckdns.org/docs
-```
 
 Then:
 
@@ -301,6 +308,8 @@ The tests cover:
 - The health endpoint.
 - A valid prediction request.
 - Rejection of invalid input.
+- The Prometheus metrics endpoint.
+- The Evidently drift-report endpoint.
 
 GitHub Actions runs these tests automatically on pushes and pull requests to `main`.
 
@@ -334,7 +343,7 @@ http://127.0.0.1:8000/docs
 
 The deployed API includes operational monitoring using Prometheus and Grafana.
 
-Prometheus collects metrics from the FastAPI `/metrics` endpoint every 10 seconds. Grafana displays the collected metrics in a provisioned dashboard.
+Prometheus collects metrics from the FastAPI `/metrics` endpoint every 10 seconds. Grafana displays the collected metrics in a provisioned operational dashboard.
 
 The dashboard monitors:
 
@@ -343,8 +352,8 @@ The dashboard monitors:
 - Latest predicted bicycle count
 - HTTP request rate by endpoint
 - Server error rate
-- API response time (p95)
-- Model prediction time (p95)
+- API response time at the 95th percentile
+- Model prediction time at the 95th percentile
 - Active HTTP requests
 
 ### Monitoring architecture
@@ -355,7 +364,170 @@ FastAPI /metrics
 Prometheus
        ↓
 Grafana dashboard
+```
 
+### Run the monitoring stack locally
+
+Create a private `.env` file based on `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Set a secure Grafana administrator password in `.env`:
+
+```env
+GRAFANA_ADMIN_PASSWORD=your-secure-password
+```
+
+The real `.env` file must not be committed to Git.
+
+Start the API, Prometheus, and Grafana:
+
+```bash
+docker compose up --build -d
+```
+
+Check the services:
+
+```bash
+docker compose ps
+```
+
+Open:
+
+- API documentation: http://127.0.0.1:1084/docs
+- Prometheus targets: http://127.0.0.1:1085/targets
+- Grafana: http://127.0.0.1:1086
+
+The Grafana username is `admin`.
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
+
+### Access VPS monitoring securely
+
+Prometheus and Grafana are bound to localhost on the VPS rather than exposed directly to the internet.
+
+Create an SSH tunnel from a local terminal:
+
+```bash
+ssh \
+  -L 2085:127.0.0.1:1085 \
+  -L 2086:127.0.0.1:1086 \
+  Maram@35.202.67.240
+```
+
+While the tunnel remains open, access:
+
+- Prometheus targets: http://127.0.0.1:2085/targets
+- Grafana dashboard: http://127.0.0.1:2086/d/seoul-bike-operational
+
+## Data drift monitoring with Evidently
+
+The project uses Evidently to detect changes in the distributions of model input features.
+
+- Live Evidently dashboard: https://maram-bike.duckdns.org/drift-report
+
+The drift analysis compares two chronologically separated portions of the dataset:
+
+- **Reference data:** the first 70% of the dataset, representing the model-training period.
+- **Current data:** the final 15% of the dataset, representing a later observation period.
+
+The following 12 model input features are monitored:
+
+- Hour
+- Temperature
+- Humidity
+- Wind speed
+- Visibility
+- Dew-point temperature
+- Solar radiation
+- Rainfall
+- Snowfall
+- Season
+- Holiday
+- Functioning day
+
+Evidently compares the reference and current distributions for every feature using statistical distance tests suitable for numerical and categorical data.
+
+Dataset drift is reported when at least 50% of the monitored features are detected as drifted.
+
+### Current drift result
+
+| Metric | Result |
+|---|---:|
+| Features analyzed | 12 |
+| Drifted features | 7 |
+| Share of drifted features | 58.3% |
+| Drift threshold | 50% |
+| Dataset drift detected | Yes |
+
+The result indicates that the later observation period has a significantly different input-feature distribution from the training reference period. Much of this difference is expected because Seoul bicycle demand and weather data are strongly seasonal.
+
+Data drift does not automatically prove that model accuracy has decreased. Instead, it indicates that model performance should be investigated and that retraining may be required when representative newer data becomes available.
+
+### Drift-monitoring process
+
+```text
+Training-period features
+          ↓
+   Reference dataset
+          │
+          ├── Evidently comparison
+          │
+    Current dataset
+          ↑
+ Later-period features
+          ↓
+ HTML and JSON drift reports
+```
+
+### Generate the Evidently report
+
+Run:
+
+```bash
+uv run python monitoring/evidently/drift_report.py
+```
+
+This creates:
+
+```text
+monitoring/evidently/reports/seoul_bike_drift_report.html
+monitoring/evidently/reports/seoul_bike_drift_report.json
+```
+
+Open the report locally:
+
+```bash
+open monitoring/evidently/reports/seoul_bike_drift_report.html
+```
+
+Alternatively, start the API and open:
+
+```text
+http://127.0.0.1:8000/drift-report
+```
+
+The deployed FastAPI service exposes the generated report at:
+
+```text
+https://maram-bike.duckdns.org/drift-report
+```
+
+### Interpretation and response to drift
+
+When drift is detected:
+
+1. Identify which features changed.
+2. Determine whether the changes are expected, such as seasonal weather changes.
+3. Evaluate the model using newer labelled observations when they become available.
+4. Retrain the model if its predictive performance has degraded.
+5. Promote and deploy the validated replacement model.
 
 ## VPS deployment
 
@@ -363,19 +535,26 @@ The production deployment uses the following components:
 
 - A Linux VPS hosts the application.
 - Docker packages and runs the FastAPI service.
-- The container is available internally through port `1084`.
-- Nginx acts as a reverse proxy.
+- Prometheus collects operational metrics.
+- Grafana provides operational visualisation.
+- Evidently provides batch input-feature drift analysis.
+- The API container is available internally through port `1084`.
+- Prometheus is available internally through port `1085`.
+- Grafana is available internally through port `1086`.
+- Nginx acts as a reverse proxy for the public API.
 - DuckDNS provides the public domain.
 - Certbot and Let’s Encrypt provide HTTPS.
-- The Docker restart policy restarts the container after a server reboot.
+- Docker restart policies restart the services after a server reboot.
 
-The internal production port mapping is:
+The internal production port mappings are:
 
 ```text
-127.0.0.1:1084 → container port 8000
+127.0.0.1:1084 → FastAPI container port 8000
+127.0.0.1:1085 → Prometheus container port 9090
+127.0.0.1:1086 → Grafana container port 3000
 ```
 
-The public Nginx endpoint is:
+The public endpoint is:
 
 ```text
 https://maram-bike.duckdns.org
@@ -390,7 +569,10 @@ https://maram-bike.duckdns.org
 - Prefect
 - FastAPI and Uvicorn
 - pytest
-- Docker
+- Prometheus
+- Grafana
+- Evidently
+- Docker and Docker Compose
 - Nginx
 - DuckDNS
 - Certbot and Let’s Encrypt
